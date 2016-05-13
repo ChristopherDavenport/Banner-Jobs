@@ -24,7 +24,8 @@ object DeleteOldGroups {
 
   def deleteTermCourses(term: String,
                         dbConfig: DatabaseConfig[JdbcProfile],
-                        directory: Directory
+                        directory: Directory,
+                        action: String
                        ) = {
     import dbConfig.driver.api._
 
@@ -43,7 +44,7 @@ object DeleteOldGroups {
     }
 
     def debugRemoveGoogle(optionsOfGroups: Seq[Option[Group]]) = {
-      genericRemoveGoogle(optionsOfGroups)(group => directory.groups.get( group.id.get ))
+      genericRemoveGoogle(optionsOfGroups){group => val thisGroup = directory.groups.get( group.id.get ); println(thisGroup); thisGroup}
     }
 
     def genericRemoveDB[T](records: Seq[GWBALIAS_R],
@@ -77,7 +78,7 @@ object DeleteOldGroups {
         Future(action.statements.head)
       }
 
-      genericRemoveDB(records, tableQuery, db)(deleteStatementsFromGwbaliasByPrimaryKey)(rec => {println(rec); rec})
+      genericRemoveDB(records, tableQuery, db)(deleteStatementsFromGwbaliasByPrimaryKey){rec => println(rec); rec}
 
     }
 
@@ -100,7 +101,7 @@ object DeleteOldGroups {
       val attempt = f(theGroups)
 
       val FailureSeq = attempt.filter( tryAttemptTuple => tryAttemptTuple._1 isFailure  )
-      val SuccessSeq = attempt.filter( tryAttemptTuple => tryAttemptTuple._1 isFailure )
+      val SuccessSeq = attempt.filter( tryAttemptTuple => tryAttemptTuple._1 isSuccess )
 
       val toRemoveFromTable = SuccessSeq.map(suc => suc._1.get)
 
@@ -131,7 +132,11 @@ object DeleteOldGroups {
       generic(productionRemoveGoogle)(productionRemoveDB)
     }
 
-    debug()
+    action match {
+      case debugProg if debugProg == "debug" => debug()
+      case prodProg if prodProg == "prod" => prod()
+      case _ => println("Not a valid Action. debug and prod are the valid options.")
+    }
 
   }
 
