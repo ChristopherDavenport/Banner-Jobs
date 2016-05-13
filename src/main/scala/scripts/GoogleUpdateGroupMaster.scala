@@ -3,7 +3,7 @@ package scripts
 
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
-import google.services.admin.directory.Directory
+import edu.eckerd.google.api.services.directory.Directory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration

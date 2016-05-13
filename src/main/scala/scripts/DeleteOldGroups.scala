@@ -1,6 +1,6 @@
 package scripts
 
-import google.services.admin.directory.Directory
+import edu.eckerd.google.api.services.directory.Directory
 import persistence.entities.tables.GWBALIAS
 import persistence.entities.representations.GWBALIAS_R
 import slick.backend.DatabaseConfig
@@ -11,7 +11,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.collection.breakOut
-import google.services.admin.directory.models._
+import edu.eckerd.google.api.services.directory.models._
 
 
 import scala.concurrent.Future

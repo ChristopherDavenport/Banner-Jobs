@@ -1,7 +1,7 @@
 package scripts
 import java.io.FileOutputStream
 
-import google.services.admin.directory.Directory
+import edu.eckerd.google.api.services.directory.Directory
 import com.google.api.services.admin.directory.model.User
 import com.google.common.io.BaseEncoding
 import persistence.entities.representations.Image
@@ -105,7 +105,7 @@ object GooglePhotos {
     * @return A Sequence for all google users of the user id and the option of an image created.
     */
   def getAllGoogleImages( outputFolder: String, service: Directory): Seq[(User, Option[Image])] = {
-    import google.language.JavaConverters._
+    import edu.eckerd.google.api.language.JavaConverters._
     val users = service.users.list()
 
     val photos = users

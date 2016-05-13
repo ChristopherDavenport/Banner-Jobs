@@ -1,6 +1,6 @@
 package scripts.GroupManagement
 
-import google.services.admin.directory.Directory
+import edu.eckerd.google.api.services.directory.Directory
 import persistence.entities.tables.{GROUPTOIDENT, GROUP_MASTER}
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl

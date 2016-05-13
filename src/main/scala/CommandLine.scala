@@ -1,15 +1,15 @@
 import java.io.{File, PrintWriter}
 
 import com.typesafe.config.ConfigFactory
-import google.services.drive.Drive
-import google.services.admin.directory.Directory
-import google.services.Scopes.DRIVE
-import google.services.Scopes.ADMIN_DIRECTORY
-import google.services.Scopes.CALENDAR
-import google.services.calendar.Calendar
-import google.services.calendar.models.Event
+import edu.eckerd.google.api.services.drive.Drive
+import edu.eckerd.google.api.services.directory.Directory
+import edu.eckerd.google.api.services.Scopes.DRIVE
+import edu.eckerd.google.api.services.Scopes.ADMIN_DIRECTORY
+import edu.eckerd.google.api.services.Scopes.CALENDAR
+import edu.eckerd.google.api.services.calendar.Calendar
+import edu.eckerd.google.api.services.calendar.models.Event
 import scripts.DeleteOldGroups
-import google.services.admin.directory.models._
+import edu.eckerd.google.api.services.directory.models._
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
 
@@ -44,7 +44,7 @@ object CommandLine extends App{
 //  val groupsWithMembers = groups.map{ Thread.sleep(50); _.getMembers}
 
 //  scripts.GoogleUpdateGroupMaster.update
-  scripts.GoogleUpdateGroupToIdent.update
+  adminDir.groups.list().take(10).map(_.getMembers).foreach(println)
 
 //  val pw = new PrintWriter(new File("/home/davenpcm/Downloads/temp/GroupsWithMembers.txt"))
 //  groupsWithMembers.foreach(group => pw.write(group.toString + "\r\n"))

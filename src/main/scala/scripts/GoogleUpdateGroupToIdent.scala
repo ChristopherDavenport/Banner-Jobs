@@ -1,14 +1,14 @@
 package scripts
 
 
-import google.services.admin.directory.models.Member
+import edu.eckerd.google.api.services.directory.models.Member
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
-import google.services.admin.directory.Directory
+import edu.eckerd.google.api.services.directory.Directory
 import persistence.entities.representations.Group2Ident_R
 import persistence.entities.tables.GROUPTOIDENT
 
