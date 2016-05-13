@@ -19,7 +19,9 @@ import utils.persistence.PersistenceModuleImpl
 object CommandLine extends App{
   val modules = new ConfigurationModuleImpl with PersistenceModuleImpl
 
-  val scope = CALENDAR :: DRIVE ::: ADMIN_DIRECTORY
+//  CALENDAR :: DRIVE :::
+
+  val scope = ADMIN_DIRECTORY
   val config = ConfigFactory.load().getConfig("google")
   val serviceAccountEmail = config.getString("email")
   val credentialFilePath = config.getString("pkcs12FilePath")
@@ -44,7 +46,10 @@ object CommandLine extends App{
 //  val groupsWithMembers = groups.map{ Thread.sleep(50); _.getMembers}
 
 //  scripts.GoogleUpdateGroupMaster.update
-  adminDir.groups.list().take(10).map(_.getMembers).foreach(println)
+  scripts.DeleteOldGroups.deleteTermCourses("201430", modules.dbConfig, adminDir, "prod")
+//  val GroupOwnedByMe = Group("TestGroup", "testgroup001@test.eckerd.edu")
+//  val createdGroup = adminDir.groups.create(GroupOwnedByMe)
+//  println(createdGroup)
 
 //  val pw = new PrintWriter(new File("/home/davenpcm/Downloads/temp/GroupsWithMembers.txt"))
 //  groupsWithMembers.foreach(group => pw.write(group.toString + "\r\n"))
