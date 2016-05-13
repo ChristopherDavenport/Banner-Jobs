@@ -6,7 +6,7 @@ import persistence.entities.tables.GROUP_MASTER
 import persistence.entities.representations.GroupMaster_R
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
-
+import language.higherKinds
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 
