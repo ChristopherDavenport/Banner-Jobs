@@ -92,7 +92,20 @@ object UpdateFromDB extends App{
   val groups = result.map{
     groupMember =>
       Group(groupMember.courseName, groupMember.courseEmail)
-  }.distinct
+  }.distinct.par.map{ group =>
+    val groupMembers = result.filter(_.courseEmail.toUpperCase == group.email.toUpperCase)
+      .map(classGroupMember =>
+        Member(Some(classGroupMember.studentEmail))
+      ).toList
+    val professor =
+      Member(
+        Option(result.find(_.courseEmail.toUpperCase == group.email.toUpperCase).get).map(_.professorEmail),
+        None,
+        "OWNER"
+    )
+
+    group.copy(members = Some(professor :: groupMembers))
+  }.seq
 
 
   def createGroups[T[Group] <: Seq[Group]](groups: T[Group],
@@ -103,9 +116,15 @@ object UpdateFromDB extends App{
 
     def CreateGroupInGoogle(group: Group): Try[Group] = {
       if (action == "prod") {
-        Try(directory.groups.create(group))
+        Try{
+          val createdGroup = directory.groups.create(group)
+          createdGroup.copy(members = group.members)
+        }
       } else {
-        Try(directory.groups.get(group).get)
+        Try{
+          val returnedGroup = directory.groups.get(group).get
+          returnedGroup.copy(members = group.members)
+        }
       }
     }
 
@@ -149,49 +168,49 @@ object UpdateFromDB extends App{
     finalResult
   }
 
-  def createGroupMembers
-  ( tryGroups: Seq[Try[Group]],
-    allGroupMembers: Seq[ClassGroupMember],
-    directory: Directory,
-    tableQuery: TableQuery[GROUPTOIDENT],
-    db: JdbcProfile#Backend#Database,
-    action: String
-  ) = {
-    def createInGoogle(tryGroup: Try[Group]): Seq[(Try[Group],Try[Member])] = {
-     tryGroup match {
-       case Success(group) =>
-         val inClass = allGroupMembers.filter(_.courseName.toLowerCase == group.name.toLowerCase)
-         val ProfessorOfClass = Member(Some(inClass.head.professorEmail), None, "OWNER")
-         val allStudentsInClass = inClass.map(student => Member(Some(student.studentEmail)))
-         val toBeMade = ProfessorOfClass +: allStudentsInClass
-
-         if (action == "prod"){
-           val members = toBeMade.map(member => Try(directory.members.add(group, member)))
-           members.map((Try(group), _))
-         } else {
-           val members = toBeMade.map(member => Try(member))
-           members.map((Try(group), _))
-         }
-       case Failure(e) => Seq((Failure(e), Failure(e)))
-     }
-    }
+//  def createGroupMembers
+//  ( tryGroups: Seq[Try[Group]],
+//    allGroupMembers: Seq[ClassGroupMember],
+//    directory: Directory,
+//    tableQuery: TableQuery[GROUPTOIDENT],
+//    db: JdbcProfile#Backend#Database,
+//    action: String
+//  ) = {
+//    def createInGoogle(tryGroup: Try[Group]): Seq[(Try[Group],Try[Member])] = {
+//     tryGroup match {
+//       case Success(group) =>
+//         val inClass = allGroupMembers.filter(_.courseName.toLowerCase == group.name.toLowerCase)
+//         val ProfessorOfClass = Member(Some(inClass.head.professorEmail), None, "OWNER")
+//         val allStudentsInClass = inClass.map(student => Member(Some(student.studentEmail)))
+//         val toBeMade = ProfessorOfClass +: allStudentsInClass
+//
+//         if (action == "prod"){
+//           val members = toBeMade.map(member => Try(directory.members.add(group, member)))
+//           members.map((Try(group), _))
+//         } else {
+//           val members = toBeMade.map(member => Try(member))
+//           members.map((Try(group), _))
+//         }
+//       case Failure(e) => Seq((Failure(e), Failure(e)))
+//     }
+//    }
 
 //    def createInDatabase(tryMembers: Seq[(Try[Group],Try[Member])]): Seq[Try[Group2Ident_R]] = {
 //      def toGroup2Ident_R(tryMember: (Try[Group],Try[Member])): Try[Group2Ident_R] = {
 //
 //      }
 //    }
-
-   tryGroups.map(createInGoogle)
-
-  }
+//
+//   tryGroups.map(createInGoogle)
+//
+//  }
 
   val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action)
   groupsNow.foreach(println)
   println("GroupsNow Length- ", groupsNow.length)
-  val groupTrys = groupsNow.map(_._1)
-  val groupMembersNow = createGroupMembers(groupTrys, result, adminDirectory, GROUPTOIDENT_TABLEQUERY, db, action)
-  groupMembersNow.foreach(println)
+//  val groupTrys = groupsNow.map(_._1)
+//  val groupMembersNow = createGroupMembers(groupTrys, result, adminDirectory, GROUPTOIDENT_TABLEQUERY, db, action)
+//  groupMembersNow.foreach(println)
 
 
 
