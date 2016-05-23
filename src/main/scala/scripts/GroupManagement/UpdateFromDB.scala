@@ -122,7 +122,7 @@ object UpdateFromDB extends App{
         }
       } else {
         Try{
-          val returnedGroup = directory.groups.get(group).get
+          val returnedGroup = group //directory.groups.get(group).get
           returnedGroup.copy(members = group.members)
         }
       }
@@ -168,49 +168,49 @@ object UpdateFromDB extends App{
     finalResult
   }
 
-//  def createGroupMembers
-//  ( tryGroups: Seq[Try[Group]],
-//    allGroupMembers: Seq[ClassGroupMember],
-//    directory: Directory,
-//    tableQuery: TableQuery[GROUPTOIDENT],
-//    db: JdbcProfile#Backend#Database,
-//    action: String
-//  ) = {
-//    def createInGoogle(tryGroup: Try[Group]): Seq[(Try[Group],Try[Member])] = {
-//     tryGroup match {
-//       case Success(group) =>
-//         val inClass = allGroupMembers.filter(_.courseName.toLowerCase == group.name.toLowerCase)
-//         val ProfessorOfClass = Member(Some(inClass.head.professorEmail), None, "OWNER")
-//         val allStudentsInClass = inClass.map(student => Member(Some(student.studentEmail)))
-//         val toBeMade = ProfessorOfClass +: allStudentsInClass
-//
-//         if (action == "prod"){
-//           val members = toBeMade.map(member => Try(directory.members.add(group, member)))
-//           members.map((Try(group), _))
-//         } else {
-//           val members = toBeMade.map(member => Try(member))
-//           members.map((Try(group), _))
-//         }
-//       case Failure(e) => Seq((Failure(e), Failure(e)))
-//     }
-//    }
+  def createGroupMembers
+  ( tryGroups: Seq[Try[Group]],
+    directory: Directory,
+    tableQuery: TableQuery[GROUPTOIDENT],
+    db: JdbcProfile#Backend#Database,
+    action: String
+  ) = {
+    def createInGoogle(tryGroup: Try[Group]): Seq[(Try[Group], Try[Member])] = {
+     tryGroup match {
+       case Success(group) =>
+
+         if (action == "prod"){
+           val members = group.members
+             .getOrElse(List[Member]())
+             .map(member => Try(directory.members.add(group, member)))
+           members.map((Try(group), _))
+         } else {
+           val members = group.members.getOrElse(List[Member]()).map(member => Try(member))
+           members.map((Try(group), _))
+         }
+       case Failure(e) => Seq((Failure(e), Failure(e)))
+     }
+    }
+
+//    TODO: Implement Way to Retrieve GoogleID For User
+//    TODO: Implement Database Entry Of Created Member
 
 //    def createInDatabase(tryMembers: Seq[(Try[Group],Try[Member])]): Seq[Try[Group2Ident_R]] = {
 //      def toGroup2Ident_R(tryMember: (Try[Group],Try[Member])): Try[Group2Ident_R] = {
 //
 //      }
 //    }
-//
-//   tryGroups.map(createInGoogle)
-//
-//  }
+
+   tryGroups.map(createInGoogle)
+
+  }
 
   val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action)
   groupsNow.foreach(println)
   println("GroupsNow Length- ", groupsNow.length)
-//  val groupTrys = groupsNow.map(_._1)
-//  val groupMembersNow = createGroupMembers(groupTrys, result, adminDirectory, GROUPTOIDENT_TABLEQUERY, db, action)
-//  groupMembersNow.foreach(println)
+  val groupTrys = groupsNow.map(_._1)
+  val groupMembersNow = createGroupMembers(groupTrys, adminDirectory, GROUPTOIDENT_TABLEQUERY, db, action)
+  groupMembersNow.foreach(println)
 
 
 
