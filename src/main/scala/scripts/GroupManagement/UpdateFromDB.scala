@@ -10,9 +10,8 @@ import persistence.entities.representations.GroupMaster_R
 import slick.driver.JdbcProfile
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
-
 import language.higherKinds
-import scala.concurrent.Await
+import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success, Try}
 
@@ -22,6 +21,7 @@ import scala.util.{Failure, Success, Try}
 object UpdateFromDB extends App{
   val action = "debug"
   val term = "201530"
+  val dataChoice = "prod"
 
   val modules = new ConfigurationModuleImpl with PersistenceModuleImpl
   implicit val db = modules.db
@@ -86,8 +86,13 @@ object UpdateFromDB extends App{
                     ORDER BY alias asc
     """.as[(String, String,String, String, String, String)]
 
-  val result = Await.result(db.run(data), Duration.Inf)
-    .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6))
+
+  val result = if (dataChoice == "prod"){
+    Await.result(db.run(data), Duration.Inf)
+      .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6))
+  } else {
+    Seq(ClassGroupMember("TestCourse", "TestCourse@eckerd.edu", "1171765", "davenpcm@eckerd.edu", "297", "abneyfl@eckerd.edu"))
+  }
 
   val groups = result.map{
     groupMember =>
@@ -123,7 +128,8 @@ object UpdateFromDB extends App{
       } else {
         Try{
           val returnedGroup = group //directory.groups.get(group).get
-          returnedGroup.copy(members = group.members)
+          val returnedGroupMembers = group.members.get.map(_.copy(id = Some("TestMemberID")))
+          returnedGroup.copy(members = Some(returnedGroupMembers), id = Some("TestGroupID"))
         }
       }
     }
@@ -145,12 +151,12 @@ object UpdateFromDB extends App{
           )
 
           if (action == "prod") {
-            val action = db.run (tableQuery.insertOrUpdate (record) )
-            val groupCreationResult = Option(Await.result (action, Duration (3, "seconds") ))
+            val actionHere = db.run (tableQuery.insertOrUpdate (record) )
+            val groupCreationResult = Option(Await.result (actionHere, Duration (3, "seconds") ))
             groupCreationResult
           } else {
-            val action = db.run (tableQuery.filter (rec => rec.id === record.id && rec.email === record.email).result)
-            val groupCreationResult = Option(Await.result (action, Duration (3, "seconds") ).length)
+            val actionHere = db.run (tableQuery.filter (rec => rec.id === record.id && rec.email === record.email).result)
+            val groupCreationResult = Option(Await.result (actionHere, Duration (3, "seconds") ).length)
             groupCreationResult
           }
         case Failure(e) => None
@@ -188,21 +194,37 @@ object UpdateFromDB extends App{
            val members = group.members.getOrElse(List[Member]()).map(member => Try(member))
            members.map((Try(group), _))
          }
+
        case Failure(e) => Seq((Failure(e), Failure(e)))
      }
     }
 
-//    TODO: Implement Way to Retrieve GoogleID For User
-//    TODO: Implement Database Entry Of Created Member
+    def createInDatabase(tryMembers: (Try[Group], Try[Member])) = {
+      tryMembers match {
+        case (Success(group), Success(member)) =>
+          val ident = Group2Ident_R(
+            group.id.get,
+            member.id.get,
+            "Y",
+            member.role,
+            member.memberType
+          )
 
-//    def createInDatabase(tryMembers: Seq[(Try[Group],Try[Member])]): Seq[Try[Group2Ident_R]] = {
-//      def toGroup2Ident_R(tryMember: (Try[Group],Try[Member])): Try[Group2Ident_R] = {
-//
-//      }
-//    }
+          if (action == "prod"){
+            val actionHere = db.run(tableQuery += ident )
+            Option(Await.result (actionHere, Duration (3, "seconds") ))
+          } else {
+            val actionHere = db.run(tableQuery.filter (rec => rec.groupId === ident.groupId && rec.identID === ident.identID).result)
+            Option(Await.result (actionHere, Duration (3, "seconds") ).length)
+          }
+        case (Success(group), Failure(e)) => None
+        case (Failure(e), _)  => None
+      }
+    }
 
-   tryGroups.map(createInGoogle)
+    val fromGoogle = tryGroups.flatMap(createInGoogle)
 
+    fromGoogle.map(createInDatabase)
   }
 
   val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action)

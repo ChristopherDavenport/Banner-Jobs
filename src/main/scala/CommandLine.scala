@@ -21,20 +21,37 @@ object CommandLine extends App{
 
 //  CALENDAR :: DRIVE :::
 
-  val scope = ADMIN_DIRECTORY
-  val config = ConfigFactory.load().getConfig("google")
-  val serviceAccountEmail = config.getString("email")
-  val credentialFilePath = config.getString("pkcs12FilePath")
-  val applicationName = config.getString("applicationName")
-  val adminImpersonatedEmail = config.getString("impersonatedEmail")
+//  val scope = ADMIN_DIRECTORY
+//  val config = ConfigFactory.load().getConfig("google")
+//  val serviceAccountEmail = config.getString("email")
+//  val credentialFilePath = config.getString("pkcs12FilePath")
+//  val applicationName = config.getString("applicationName")
+//  val adminImpersonatedEmail = config.getString("impersonatedEmail")
+//
+//  val pluggableDrive = Drive(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
+//  val pluggableDirectory = Directory(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
+//  val pluggableCalendar = Calendar(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
 
-  val pluggableDrive = Drive(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
-  val pluggableDirectory = Directory(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
-  val pluggableCalendar = Calendar(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
 
 
+  implicit val adminDir = Directory()
 
-  implicit val adminDir = pluggableDirectory(adminImpersonatedEmail)
+  val myUsers = adminDir.users.list().filter(user => user.primaryEmail == Email("davenpcm@eckerd.edu") || user.primaryEmail == Email("abneyfl@eckerd.edu"))
+  println(myUsers)
+
+
+  val newGroup = Group("testgroupscala", "testgroupscala@test.eckerd.edu", adminCreated = Some(true))
+  val createdGroup = adminDir.groups.create(newGroup)
+  println(newGroup)
+  println(createdGroup)
+
+  val members = myUsers.map(adminDir.members.add(createdGroup, _))
+  println(members)
+
+//  val end = adminDir.groups.delete(createdGroup.email)
+//  println(end)
+
+
 //  val myCal = pluggableCalendar("davenpcm@eckerd.edu")
 //  val myDrive = pluggableDrive("davenpcm@eckerd.edu")
 
@@ -46,7 +63,7 @@ object CommandLine extends App{
 //  val groupsWithMembers = groups.map{ Thread.sleep(50); _.getMembers}
 
 //  scripts.GoogleUpdateGroupMaster.update
-  scripts.DeleteOldGroups.deleteTermCourses("201430", modules.dbConfig, adminDir, "prod")
+//  scripts.DeleteOldGroups.deleteTermCourses("201430", modules.dbConfig, adminDir, "prod")
 //  val GroupOwnedByMe = Group("TestGroup", "testgroup001@test.eckerd.edu")
 //  val createdGroup = adminDir.groups.create(GroupOwnedByMe)
 //  println(createdGroup)
