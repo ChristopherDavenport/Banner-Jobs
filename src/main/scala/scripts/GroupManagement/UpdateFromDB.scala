@@ -1,5 +1,6 @@
 package scripts.GroupManagement
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import edu.eckerd.google.api.services.directory.Directory
 import edu.eckerd.google.api.services.directory.models.Group
 import persistence.entities.tables.GROUP_MASTER
@@ -10,6 +11,7 @@ import persistence.entities.representations.GroupMaster_R
 import slick.driver.JdbcProfile
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
+
 import language.higherKinds
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.Duration
@@ -19,9 +21,9 @@ import scala.util.{Failure, Success, Try}
   * Created by davenpcm on 4/29/16.
   */
 object UpdateFromDB extends App{
-  val action = "debug"
+  val action = "prod"
   val term = "201530"
-  val dataChoice = "prod"
+  val dataChoice = "debug"
 
   val modules = new ConfigurationModuleImpl with PersistenceModuleImpl
   implicit val db = modules.db
@@ -47,7 +49,8 @@ object UpdateFromDB extends App{
                     --     substr(SSBSECT_SEQ_NUMB, -1),
                     --     decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') as TERM_ALIAS,
                         nvl(SSBSECT_CRSE_TITLE, x.SCBCRSE_TITLE) as COURSE_TITLE,
-                        lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || substr(SSBSECT_SEQ_NUMB, -1) || '-' || decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as alias,
+                        lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || substr(SSBSECT_SEQ_NUMB, -1) || '-' ||
+                         decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as alias,
                         student.USERNAME as STUDENT_ACCOUNT,
                         student.EMAIL as STUDENT_EMAIL,
                         professor.USERNAME as PROFESSOR_ACCOUNT,
@@ -87,24 +90,30 @@ object UpdateFromDB extends App{
     """.as[(String, String,String, String, String, String)]
 
 
-  val result = if (dataChoice == "prod"){
+  val membersFromDB = if (dataChoice == "prod"){
     Await.result(db.run(data), Duration.Inf)
       .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6))
   } else {
-    Seq(ClassGroupMember("TestCourse", "TestCourse@eckerd.edu", "1171765", "davenpcm@eckerd.edu", "297", "abneyfl@eckerd.edu"))
+    Seq(
+      ClassGroupMember(
+        "TestCourseScala", "TestCourseScala@test.eckerd.edu",
+        "1171765", "davenpcm@eckerd.edu",
+        "297", "abneyfl@eckerd.edu"
+      )
+    )
   }
 
-  val groups = result.map{
+  val groups = membersFromDB.map{
     groupMember =>
       Group(groupMember.courseName, groupMember.courseEmail)
   }.distinct.par.map{ group =>
-    val groupMembers = result.filter(_.courseEmail.toUpperCase == group.email.toUpperCase)
+    val groupMembers = membersFromDB.filter(_.courseEmail.toUpperCase == group.email.toUpperCase)
       .map(classGroupMember =>
         Member(Some(classGroupMember.studentEmail))
       ).toList
     val professor =
       Member(
-        Option(result.find(_.courseEmail.toUpperCase == group.email.toUpperCase).get).map(_.professorEmail),
+        Option(membersFromDB.find(_.courseEmail.toUpperCase == group.email.toUpperCase).get).map(_.professorEmail),
         None,
         "OWNER"
     )
@@ -113,23 +122,30 @@ object UpdateFromDB extends App{
   }.seq
 
 
+
+
   def createGroups[T[Group] <: Seq[Group]](groups: T[Group],
                                            directory: Directory,
                                            tableQuery: TableQuery[GROUP_MASTER],
                                            db: JdbcProfile#Backend#Database,
                                            action: String ): Seq[(Try[Group], Option[Int])] = {
-
+    //The Vars Are Only Here For Debugging To Create Unique Ids
+    var memberNum = 0
+    var groupNum = 0
     def CreateGroupInGoogle(group: Group): Try[Group] = {
+
       if (action == "prod") {
-        Try{
-          val createdGroup = directory.groups.create(group)
-          createdGroup.copy(members = group.members)
+        val createdGroup = Try(directory.groups.create(group)).map(_.copy(members = group.members)) recoverWith  {
+          case e: GoogleJsonResponseException if e.getMessage contains "Entity already exists." =>  Try(group)
         }
+
+        createdGroup
       } else {
         Try{
           val returnedGroup = group //directory.groups.get(group).get
-          val returnedGroupMembers = group.members.get.map(_.copy(id = Some("TestMemberID")))
-          returnedGroup.copy(members = Some(returnedGroupMembers), id = Some("TestGroupID"))
+          groupNum += 1
+          val returnedGroupMembers = group.members.get.map{member => memberNum += 1; member.copy(id = Some(s"TestMemberIDScala$memberNum"))}
+          returnedGroup.copy(members = Some(returnedGroupMembers), id = Some(s"TestGroupIDScala$groupNum"))
         }
       }
     }
@@ -138,7 +154,7 @@ object UpdateFromDB extends App{
       tryGroup match {
         case Success(group) =>
 
-          val record = GroupMaster_R (group.id.getOrElse ("IMAGINARY LIES"),
+          val record = GroupMaster_R (group.id.get,
             "Y",
             group.name,
             group.email,
@@ -151,7 +167,7 @@ object UpdateFromDB extends App{
           )
 
           if (action == "prod") {
-            val actionHere = db.run (tableQuery.insertOrUpdate (record) )
+            val actionHere = db.run (tableQuery += record )
             val groupCreationResult = Option(Await.result (actionHere, Duration (3, "seconds") ))
             groupCreationResult
           } else {
@@ -188,10 +204,14 @@ object UpdateFromDB extends App{
          if (action == "prod"){
            val members = group.members
              .getOrElse(List[Member]())
-             .map(member => Try(directory.members.add(group, member)))
+             .map(
+               member => Try(directory.members.add(group, member)) recoverWith  {
+                case e: GoogleJsonResponseException if e.getMessage contains "Entity already exists." => Try(member)}
+             )
            members.map((Try(group), _))
          } else {
-           val members = group.members.getOrElse(List[Member]()).map(member => Try(member))
+           val members = group.members.getOrElse(List[Member]())
+             .map(member => Try(member))
            members.map((Try(group), _))
          }
 
@@ -224,7 +244,7 @@ object UpdateFromDB extends App{
 
     val fromGoogle = tryGroups.flatMap(createInGoogle)
 
-    fromGoogle.map(createInDatabase)
+    fromGoogle.map(start => (start, createInDatabase(start)))
   }
 
   val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action)
@@ -235,6 +255,8 @@ object UpdateFromDB extends App{
   groupMembersNow.foreach(println)
 
 
-
+//  if (action == "prod" && dataChoice != "prod"){
+//    db.run()
+//  }
 
 }
