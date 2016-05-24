@@ -32,7 +32,7 @@ object DeleteOldGroups {
     def genericRemoveGoogle(optionsOfGroups: Seq[Option[Group]])(f: Group => Try[Group])
     : Seq[(Try[Group], Option[Group] )] = {
       val result = optionsOfGroups.map{
-        case Some(group) => Thread.sleep(333) ; f(group)
+        case Some(group) => f(group)
         case None => Failure(new Throwable("No Matching Group"))
       }.zip(optionsOfGroups)
 

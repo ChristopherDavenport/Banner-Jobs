@@ -1,15 +1,16 @@
 name := "Banner-Jobs"
 
-mainClass in Compile := Some("GoogleUpdateGobumap")
+mainClass in Compile := Some("CommandLine")
 
 scalaVersion := "2.11.8"
 
+resolvers += Resolver.sonatypeRepo("snapshots")
+
 libraryDependencies ++= List(
-  "edu.eckerd" %% "google-api-scala" % "0.01-SNAPSHOT",
+  "edu.eckerd" %% "google-api-scala" % "0.0.1-SNAPSHOT",
   "com.typesafe.slick" %% "slick" % "3.1.0",
   "org.slf4j" % "slf4j-nop" % "1.7.10",
   "com.h2database" % "h2" % "1.4.187",
-  "com.typesafe.akka" % "akka-actor_2.11" % "2.4.4",
   "org.scalatest" %% "scalatest" % "2.2.6" % "test",
   "com.typesafe.slick" %% "slick-extensions" % "3.1.0",
   "com.typesafe.slick" %% "slick-hikaricp" % "3.1.0"
@@ -19,4 +20,5 @@ libraryDependencies ++= List(
 unmanagedBase := baseDirectory.value / ".lib"
 
 resolvers += "Typesafe Releases" at "http://repo.typesafe.com/typesafe/maven-releases/"
+
 fork in run := true

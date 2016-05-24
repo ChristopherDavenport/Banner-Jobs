@@ -36,17 +36,17 @@ object CommandLine extends App{
 
   implicit val adminDir = Directory()
 
-  val myUsers = adminDir.users.list().filter(user => user.primaryEmail == Email("davenpcm@eckerd.edu") || user.primaryEmail == Email("abneyfl@eckerd.edu"))
-  println(myUsers)
-
-
-  val newGroup = Group("testgroupscala", "testgroupscala@test.eckerd.edu", adminCreated = Some(true))
-  val createdGroup = adminDir.groups.create(newGroup)
-  println(newGroup)
-  println(createdGroup)
-
-  val members = myUsers.map(adminDir.members.add(createdGroup, _))
-  println(members)
+//  val myUsers = adminDir.users.list().filter(user => user.primaryEmail == Email("davenpcm@eckerd.edu") || user.primaryEmail == Email("abneyfl@eckerd.edu"))
+//  println(myUsers)
+//
+//
+//  val newGroup = Group("testgroupscala", "testgroupscala@test.eckerd.edu", adminCreated = Some(true))
+//  val createdGroup = adminDir.groups.create(newGroup)
+//  println(newGroup)
+//  println(createdGroup)
+//
+//  val members = myUsers.map(adminDir.members.add(createdGroup, _))
+//  println(members)
 
 //  val end = adminDir.groups.delete(createdGroup.email)
 //  println(end)
@@ -55,7 +55,7 @@ object CommandLine extends App{
 //  val myCal = pluggableCalendar("davenpcm@eckerd.edu")
 //  val myDrive = pluggableDrive("davenpcm@eckerd.edu")
 
-//  DeleteOldGroups.deleteTermCourses("201430", modules.dbConfig, adminDir)
+  scripts.DeleteOldGroups.deleteTermCourses("201510", modules.dbConfig, adminDir, "debug")
 
 
 //  val groups = adminDir.groups.list()
