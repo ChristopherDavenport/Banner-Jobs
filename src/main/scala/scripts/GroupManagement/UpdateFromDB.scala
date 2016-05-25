@@ -73,7 +73,8 @@ object UpdateFromDB extends App{
                             AND SIRASGN_PIDM is not NULL
                     INNER JOIN STVRSTS
                             ON STVRSTS_CODE = SFRSTCR_RSTS_CODE
-                            AND STVRSTS_INCL_ASSESS = 'Y'
+                            AND STVRSTS_INCL_SECT_ENRL = 'Y'
+                            AND STVRSTS_WITHDRAW_IND = 'N'
                     INNER JOIN IDENT_MASTER student
                         ON SFRSTCR_PIDM = student.PIDM
                     INNER JOIN IDENT_MASTER professor
