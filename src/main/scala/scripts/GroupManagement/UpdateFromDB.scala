@@ -65,7 +65,7 @@ object UpdateFromDB extends App{
                             ON SSBSECT_TERM_CODE = SFRSTCR_TERM_CODE
                             AND SSBSECT_CRN = SFRSTCR_CRN
                             AND SSBSECT_ENRL > 0
-                            AND REGEXP_LIKE(SSBSECT_SEQ_NUMB, '^-?\d+(\.\d+)?$$')
+                            AND REGEXP_LIKE(SSBSECT_SEQ_NUMB, '^-?\d+?$$')
                     LEFT JOIN SIRASGN
                             ON SIRASGN_TERM_CODE = SFRSTCR_TERM_CODE
                             AND SIRASGN_CRN = SFRSTCR_CRN
