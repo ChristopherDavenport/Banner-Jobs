@@ -49,8 +49,8 @@ object UpdateFromDB extends App{
                     --     substr(SSBSECT_SEQ_NUMB, -1),
                     --     decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') as TERM_ALIAS,
                         nvl(SSBSECT_CRSE_TITLE, x.SCBCRSE_TITLE) as COURSE_TITLE,
-                        lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || substr(SSBSECT_SEQ_NUMB, -1) || '-' ||
-                         decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as alias,
+                        lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || TO_CHAR(TO_NUMBER(SSBSECT_SEQ_NUMB)) ||
+                        '-' || decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as ALIAS,
                         student.USERNAME as STUDENT_ACCOUNT,
                         student.EMAIL as STUDENT_EMAIL,
                         professor.USERNAME as PROFESSOR_ACCOUNT,
@@ -65,6 +65,7 @@ object UpdateFromDB extends App{
                             ON SSBSECT_TERM_CODE = SFRSTCR_TERM_CODE
                             AND SSBSECT_CRN = SFRSTCR_CRN
                             AND SSBSECT_ENRL > 0
+                            AND REGEXP_LIKE(SSBSECT_SEQ_NUMB, '^-?\d+(\.\d+)?$$')
                     LEFT JOIN SIRASGN
                             ON SIRASGN_TERM_CODE = SFRSTCR_TERM_CODE
                             AND SIRASGN_CRN = SFRSTCR_CRN
