@@ -1,5 +1,5 @@
 package persistence.entities.tables
-import slick.driver.H2Driver.api._
+
 import com.typesafe.slick.driver.oracle.OracleDriver.api._
 import persistence.entities.constructs.AutoTable
 import persistence.entities.representations.GroupMaster_R

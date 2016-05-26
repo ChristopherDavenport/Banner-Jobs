@@ -3,14 +3,14 @@ package scripts.GroupManagement
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import edu.eckerd.google.api.services.directory.Directory
 import edu.eckerd.google.api.services.directory.models.Group
-import persistence.entities.tables.GROUP_MASTER
-import persistence.entities.tables.GROUPTOIDENT
+import persistence.entities.tables.{GOOGLE_USERS, GROUPTOIDENT, GROUP_MASTER}
 import persistence.entities.representations.Group2Ident_R
 import edu.eckerd.google.api.services.directory.models.Member
 import persistence.entities.representations.GroupMaster_R
 import slick.driver.JdbcProfile
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import language.higherKinds
 import scala.concurrent.{Await, Future}
@@ -30,15 +30,20 @@ object UpdateFromDB extends App{
   import modules.dbConfig.driver.api._
   val GROUP_MASTER_TABLEQUERY = TableQuery[GROUP_MASTER]
   val GROUPTOIDENT_TABLEQUERY = TableQuery[GROUPTOIDENT]
+  val GOOGLE_TABLEQUERY = TableQuery[GOOGLE_USERS]
 
   implicit val adminDirectory = Directory()
 
-  case class ClassGroupMember (courseName: String,
-                              courseEmail: String,
-                              studentAccountId: String,
-                              studentEmail: String,
-                              professorAccountId: String,
-                              professorEmail: String)
+  case class ClassGroupMember (
+                                courseName: String,
+                                courseEmail: String,
+                                studentAccountId: String,
+                                studentEmail: String,
+                                fallbackAccountID: Option[String],
+                                fallbackEmail: Option[String],
+                                professorAccountId: String,
+                                professorEmail: String
+                              )
 
 
   val data = sql"""SELECT
@@ -48,58 +53,70 @@ object UpdateFromDB extends App{
                     --     SSBSECT_CRSE_NUMB as COURSE_NUMBER,
                     --     substr(SSBSECT_SEQ_NUMB, -1),
                     --     decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') as TERM_ALIAS,
-                        nvl(SSBSECT_CRSE_TITLE, x.SCBCRSE_TITLE) as COURSE_TITLE,
-                        lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || TO_CHAR(TO_NUMBER(SSBSECT_SEQ_NUMB)) ||
-                        '-' || decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as ALIAS,
-                        student.USERNAME as STUDENT_ACCOUNT,
-                        student.EMAIL as STUDENT_EMAIL,
-                        professor.USERNAME as PROFESSOR_ACCOUNT,
-                        professor.EMAIL as PROFESSOR_EMAIL
-                    FROM
-                    SFRSTCR
-                    INNER JOIN
-                        SSBSECT
-                            INNER JOIN SCBCRSE x
-                                ON SCBCRSE_CRSE_NUMB = SSBSECT_CRSE_NUMB
-                                AND SCBCRSE_SUBJ_CODE = SSBSECT_SUBJ_CODE
-                            ON SSBSECT_TERM_CODE = SFRSTCR_TERM_CODE
-                            AND SSBSECT_CRN = SFRSTCR_CRN
-                            AND SSBSECT_ENRL > 0
-                            AND REGEXP_LIKE(SSBSECT_SEQ_NUMB, '^-?\d+?$$')
-                    LEFT JOIN SIRASGN
-                            ON SIRASGN_TERM_CODE = SFRSTCR_TERM_CODE
-                            AND SIRASGN_CRN = SFRSTCR_CRN
-                            AND SIRASGN_PRIMARY_IND = 'Y'
-                            AND SIRASGN_PIDM is not NULL
-                    INNER JOIN STVRSTS
-                            ON STVRSTS_CODE = SFRSTCR_RSTS_CODE
-                            AND STVRSTS_INCL_SECT_ENRL = 'Y'
-                            AND STVRSTS_WITHDRAW_IND = 'N'
-                    INNER JOIN IDENT_MASTER student
-                        ON SFRSTCR_PIDM = student.PIDM
-                    INNER JOIN IDENT_MASTER professor
-                        ON SIRASGN_PIDM = professor.PIDM
-                    INNER JOIN GTVSDAX
-                        ON SFRSTCR_TERM_CODE = GTVSDAX_EXTERNAL_CODE
-                        AND GTVSDAX_INTERNAL_CODE_GROUP in ('ALIAS_UP', 'ALIAS_UP_XCRS', 'ALIAS_UR')
-                    WHERE
-                    (SELECT MAX(SCBCRSE_EFF_TERM)
-                        FROM SCBCRSE y
-                        WHERE y.SCBCRSE_CRSE_NUMB = x.SCBCRSE_CRSE_NUMB
-                        AND y.SCBCRSE_SUBJ_CODE = x.SCBCRSE_SUBJ_CODE
-                    ) = x.SCBCRSE_EFF_TERM
-                    ORDER BY alias asc
-    """.as[(String, String,String, String, String, String)]
+  nvl(SSBSECT_CRSE_TITLE, x.SCBCRSE_TITLE) as COURSE_TITLE,
+  lower(SSBSECT_SUBJ_CODE) || SSBSECT_CRSE_NUMB || '-' || TO_CHAR(TO_NUMBER(SSBSECT_SEQ_NUMB)) ||
+  '-' || decode(substr(SFRSTCR_TERM_CODE, -2, 1), 1, 'fa', 2, 'sp', 3, 'su') || '@eckerd.edu' as ALIAS,
+  student.PRIMARY_EMAIL_ID as STUDENT_ACCOUNT,
+  student.PRIMARY_EMAIL as STUDENT_EMAIL,
+  g.GOOGLE_ID as FALLBACK_ID,
+  g.EMAIL AS FALLBACK_EMAL,
+--   emal.GOREMAL_EMAIL_ADDRESS as FALLBACK_EMAIL,
+  professor.PRIMARY_EMAIL_ID as PROFESSOR_ACCOUNT,
+  professor.PRIMARY_EMAIL as PROFESSOR_EMAIL
+FROM
+  SFRSTCR
+  INNER JOIN
+  SSBSECT
+  INNER JOIN SCBCRSE x
+    ON SCBCRSE_CRSE_NUMB = SSBSECT_CRSE_NUMB
+       AND SCBCRSE_SUBJ_CODE = SSBSECT_SUBJ_CODE
+    ON SSBSECT_TERM_CODE = SFRSTCR_TERM_CODE
+       AND SSBSECT_CRN = SFRSTCR_CRN
+       AND SSBSECT_ENRL > 0
+       AND REGEXP_LIKE(SSBSECT_SEQ_NUMB, '^-?\d+?$$')
+  LEFT JOIN SIRASGN
+    ON SIRASGN_TERM_CODE = SFRSTCR_TERM_CODE
+       AND SIRASGN_CRN = SFRSTCR_CRN
+       AND SIRASGN_PRIMARY_IND = 'Y'
+       AND SIRASGN_PIDM is not NULL
+  INNER JOIN STVRSTS
+    ON STVRSTS_CODE = SFRSTCR_RSTS_CODE
+       AND STVRSTS_INCL_SECT_ENRL = 'Y'
+       AND STVRSTS_WITHDRAW_IND = 'N'
+  INNER JOIN IDENT_MASTER student
+    INNER JOIN GOREMAL emal
+      ON GOREMAL_PIDM = student.PIDM
+      AND GOREMAL_EMAL_CODE IN ('CAS', 'ZCAS')
+    LEFT JOIN GOOGLE_USERS g
+      ON g.FIRST_NAME = student.FIRST_NAME
+      AND g.LAST_NAME = student.LAST_NAME
+      AND emal.GOREMAL_EMAIL_ADDRESS = g.EMAIL
+      AND g.EMAIL <> student.PRIMARY_EMAIL
+      AND g.GOOGLE_ID <> student.PRIMARY_EMAIL_ID
+    ON SFRSTCR_PIDM = student.PIDM
+  INNER JOIN IDENT_MASTER professor
+    ON SIRASGN_PIDM = professor.PIDM
+  INNER JOIN GTVSDAX
+    ON SFRSTCR_TERM_CODE = GTVSDAX_EXTERNAL_CODE
+       AND GTVSDAX_INTERNAL_CODE_GROUP in ('ALIAS_UP', 'ALIAS_UP_XCRS', 'ALIAS_UR')
+WHERE
+  (SELECT MAX(SCBCRSE_EFF_TERM)
+   FROM SCBCRSE y
+   WHERE y.SCBCRSE_CRSE_NUMB = x.SCBCRSE_CRSE_NUMB
+         AND y.SCBCRSE_SUBJ_CODE = x.SCBCRSE_SUBJ_CODE
+  ) = x.SCBCRSE_EFF_TERM
+ORDER BY alias asc
+    """.as[(String, String,String, String, Option[String], Option[String], String, String)]
 
   val existingGroupMembersQuery = db.run(sql"""
                                      SELECT
-                                      i.EMAIL,
+                                      u.EMAIL,
                                       g.EMAIL
                                      FROM GROUP_TO_IDENT gti
                                      INNER JOIN GROUP_MASTER g
                                        on gti.GROUP_ID = g.ID
-                                     INNER JOIN IDENT_MASTER i
-                                       on gti.IDENT_ID = i.USERNAME
+                                     INNER JOIN GOOGLE_USERS u
+                                       on gti.IDENT_ID = u.GOOGLE_ID
     """.as[(String, String)])
 
   val existingSet = Await.result(existingGroupMembersQuery, Duration(60, "seconds"))
@@ -110,16 +127,17 @@ object UpdateFromDB extends App{
     val fromDB = Await.result(db.run(data), Duration.Inf)
     println( "Initial Query Size", fromDB.length)
     val result = fromDB
-      .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6))
+      .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6, tuple._7, tuple._8))
       .filterNot(fromQuery =>
-        existingSet((fromQuery.studentEmail.toLowerCase, fromQuery.courseEmail.toLowerCase) )
+        existingSet((fromQuery.studentEmail.toLowerCase, fromQuery.courseEmail.toLowerCase) ) ||
+        existingSet((fromQuery.fallbackEmail.getOrElse("BAD-DONT-MATCH").toLowerCase, fromQuery.courseEmail.toLowerCase))
       )
 
     result
   } else {
     Seq(ClassGroupMember(
         "TestCourseScala", "TestCourseScala@test.eckerd.edu",
-        "1171765", "davenpcm@eckerd.edu",
+        "1171765", "davenpcm@eckerd.edu", None, None,
         "297", "abneyfl@eckerd.edu"
       ))
       .filterNot(fromQuery =>
