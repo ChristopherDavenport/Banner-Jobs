@@ -8,18 +8,24 @@ import edu.eckerd.google.api.services.Scopes.ADMIN_DIRECTORY
 import edu.eckerd.google.api.services.Scopes.CALENDAR
 import edu.eckerd.google.api.services.calendar.Calendar
 import edu.eckerd.google.api.services.calendar.models.Event
-import scripts.DeleteOldGroups
+import scripts.{DeleteOldGroups, GoogleUpdateGoogleUsers}
 import edu.eckerd.google.api.services.directory.models._
+import persistence.entities.tables.GOOGLE_USERS
 import utils.configuration.ConfigurationModuleImpl
 import utils.persistence.PersistenceModuleImpl
+
+import scala.concurrent.duration.Duration
+import scala.concurrent.Await
 
 /**
   * Created by davenpcm on 5/3/16.
   */
 object CommandLine extends App{
   val modules = new ConfigurationModuleImpl with PersistenceModuleImpl
+  import modules.dbConfig.driver.api._
 
-//  CALENDAR :: DRIVE :::
+
+  //  CALENDAR :: DRIVE :::
 
 //  val scope = ADMIN_DIRECTORY
 //  val config = ConfigFactory.load().getConfig("google")
@@ -33,8 +39,15 @@ object CommandLine extends App{
 //  val pluggableCalendar = Calendar(serviceAccountEmail, credentialFilePath, applicationName, scope)(_)
 
 
+//  val createTable = modules.db.run(tableQuery.schema.create)
+//  Await.result(createTable, Duration.Inf)
 
-  implicit val adminDir = Directory()
+//  implicit val adminDir = Directory()
+
+//  val users = adminDir.users.list("test.eckerd.edu") ::: adminDir.users.list()
+
+//  val addUsers = modules.db.run(tableQuery ++= users)
+//  Await.result(addUsers, Duration.Inf)
 
 //  val myUsers = adminDir.users.list().filter(user => user.primaryEmail == Email("davenpcm@eckerd.edu") || user.primaryEmail == Email("abneyfl@eckerd.edu"))
 //  println(myUsers)
@@ -55,7 +68,7 @@ object CommandLine extends App{
 //  val myCal = pluggableCalendar("davenpcm@eckerd.edu")
 //  val myDrive = pluggableDrive("davenpcm@eckerd.edu")
 
-  scripts.DeleteOldGroups.deleteTermCourses("201510", modules.dbConfig, adminDir, "debug")
+//  scripts.DeleteOldGroups.deleteTermCourses("201510", modules.dbConfig, adminDir, "debug")
 
 
 //  val groups = adminDir.groups.list()
