@@ -22,7 +22,7 @@ import scala.util.{Failure, Success, Try}
   */
 object UpdateFromDB extends App{
   val action = "debug"
-  val term = "201530"
+//  val term = "201530"
   val dataChoice = "prod"
 
   val modules = new ConfigurationModuleImpl with PersistenceModuleImpl
@@ -42,7 +42,8 @@ object UpdateFromDB extends App{
                                 fallbackAccountID: Option[String],
                                 fallbackEmail: Option[String],
                                 professorAccountId: String,
-                                professorEmail: String
+                                professorEmail: String,
+                                term : String
                               )
 
 
@@ -62,7 +63,8 @@ object UpdateFromDB extends App{
   g.EMAIL AS FALLBACK_EMAL,
 --   emal.GOREMAL_EMAIL_ADDRESS as FALLBACK_EMAIL,
   professor.PRIMARY_EMAIL_ID as PROFESSOR_ACCOUNT,
-  professor.PRIMARY_EMAIL as PROFESSOR_EMAIL
+  professor.PRIMARY_EMAIL as PROFESSOR_EMAIL,
+  GTVSDAX_EXTERNAL_CODE
 FROM
   SFRSTCR
   INNER JOIN
@@ -96,9 +98,13 @@ FROM
     ON SFRSTCR_PIDM = student.PIDM
   INNER JOIN IDENT_MASTER professor
     ON SIRASGN_PIDM = professor.PIDM
-  INNER JOIN GTVSDAX
-    ON SFRSTCR_TERM_CODE = GTVSDAX_EXTERNAL_CODE
-       AND GTVSDAX_INTERNAL_CODE_GROUP in ('ALIAS_UP', 'ALIAS_UP_XCRS', 'ALIAS_UR')
+  INNER JOIN (
+    SELECT DISTINCT GTVSDAX_EXTERNAL_CODE
+    FROM GTVSDAX
+    WHERE
+      GTVSDAX_INTERNAL_CODE = 'ECTERM'
+      AND GTVSDAX_INTERNAL_CODE_GROUP IN ('ALIAS_UP', 'ALIAS_UP_XCRS', 'ALIAS_UR', 'ALIAS_UR_XCRS')
+    ) ON SFRSTCR_TERM_CODE = GTVSDAX_EXTERNAL_CODE
 WHERE
   (SELECT MAX(SCBCRSE_EFF_TERM)
    FROM SCBCRSE y
@@ -106,7 +112,7 @@ WHERE
          AND y.SCBCRSE_SUBJ_CODE = x.SCBCRSE_SUBJ_CODE
   ) = x.SCBCRSE_EFF_TERM
 ORDER BY alias asc
-    """.as[(String, String,String, String, Option[String], Option[String], String, String)]
+    """.as[(String, String,String, String, Option[String], Option[String], String, String, String)]
 
   val existingGroupMembersQuery = db.run(sql"""
                                      SELECT
@@ -125,9 +131,12 @@ ORDER BY alias asc
 
   val membersFromDB = if (dataChoice == "prod"){
     val fromDB = Await.result(db.run(data), Duration.Inf)
+
     println( "Initial Query Size", fromDB.length)
-    val result = fromDB
-      .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6, tuple._7, tuple._8))
+    val intermediateResult = fromDB
+      .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6, tuple._7, tuple._8, tuple._9))
+    intermediateResult.foreach(println)
+    val result = intermediateResult
       .filterNot(fromQuery =>
         existingSet((fromQuery.studentEmail.toLowerCase, fromQuery.courseEmail.toLowerCase) ) ||
         existingSet((fromQuery.fallbackEmail.getOrElse("BAD-DONT-MATCH").toLowerCase, fromQuery.courseEmail.toLowerCase))
@@ -138,7 +147,7 @@ ORDER BY alias asc
     Seq(ClassGroupMember(
         "TestCourseScala", "TestCourseScala@test.eckerd.edu",
         "1171765", "davenpcm@eckerd.edu", None, None,
-        "297", "abneyfl@eckerd.edu"
+        "297", "abneyfl@eckerd.edu", "201530"
       ))
       .filterNot(fromQuery =>
         existingSet((fromQuery.studentEmail.toLowerCase, fromQuery.courseEmail.toLowerCase) )
@@ -150,25 +159,28 @@ ORDER BY alias asc
 
   val groups = membersFromDB.map{
     groupMember =>
-      Group(groupMember.courseName, groupMember.courseEmail)
+      ( Group(groupMember.courseName, groupMember.courseEmail), groupMember.term)
   }.distinct.par.map{ group =>
-    val groupMembers = membersFromDB.filter(_.courseEmail.toLowerCase == group.email.toLowerCase)
-      .map(classGroupMember =>
-        Member(Some(classGroupMember.studentEmail))
+    val groupMembers = membersFromDB.filter(_.courseEmail.toLowerCase == group._1.email.toLowerCase)
+      .map(classGroupMember => classGroupMember.fallbackEmail match {
+        case Some(email) => Member(Some(email))
+        case None => Member(Some(classGroupMember.studentEmail))
+      }
+
       ).toList
     val professor =
       Member(
-        Option(membersFromDB.find(_.courseEmail.toLowerCase == group.email.toLowerCase).get).map(_.professorEmail),
+        Option(membersFromDB.find(_.courseEmail.toLowerCase == group._1.email.toLowerCase).get).map(_.professorEmail),
         None,
         "OWNER"
     )
 
-    group.copy(members = Some(/*professor ::*/ groupMembers))
+    (group._1.copy(members = Some(professor :: groupMembers)), group._2)
   }.seq
 
 
 
-  def createGroups[T[Group] <: Seq[Group]](groups: T[Group],
+  def createGroups[T[Group] <: Seq[Group]](groups: T[(Group, String)],
                                            directory: Directory,
                                            tableQuery: TableQuery[GROUP_MASTER],
                                            db: JdbcProfile#Backend#Database,
@@ -209,7 +221,7 @@ ORDER BY alias asc
       }
     }
 
-    def CreateGroupInGroupMaster(tryGroup: Try[Group]): Option[Int] = {
+    def CreateGroupInGroupMaster(tryGroup: Try[Group], term: String): Option[Int] = {
       tryGroup match {
         case Success(group) => group.id match {
           case Some(_) => Some(0)
@@ -243,10 +255,10 @@ ORDER BY alias asc
 
 
     val finalResult = groups.map{group =>
-      val checkedGroups = CheckIfExists(group)
+      val checkedGroups = CheckIfExists(group._1)
 
       val returned = CreateGroupInGoogle(checkedGroups)
-      val createdInDb = CreateGroupInGroupMaster(returned)
+      val createdInDb = CreateGroupInGroupMaster(returned, group._2)
       (returned, createdInDb)
     }
 
@@ -311,8 +323,8 @@ ORDER BY alias asc
     fromGoogle.map(start => (start, createInDatabase(start)))
   }
 
-  val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action).map(_._1).filter(_.isSuccess).map(_.get)
-  val split = groupsNow.partition(_.id.get contains "Test")
+  val groupsNow = createGroups(groups, adminDirectory, GROUP_MASTER_TABLEQUERY, db, action).map(_._1).filter(_.isSuccess)
+  val split = groupsNow.map(_.get).partition(_.id.get contains "Test")
   val groupProbs = split._1
   val personProbs = split._2
   println("Group Probs Length", groupProbs.length)
@@ -323,6 +335,9 @@ ORDER BY alias asc
   println
   println("Person Problems")
   personProbs.foreach(println)
+
+  val membersNow = createGroupMembers(groupsNow, adminDirectory, GROUPTOIDENT_TABLEQUERY, db, action)
+  membersNow.map(t => (t._1._1.get.email, t._1._2.get.email.get)).foreach(println)
 //  groupsNow.foreach(println)
 //  println("GroupsNow Length ", groupsNow.length)
 //  val groupTrys = groupsNow.map(_._1)
