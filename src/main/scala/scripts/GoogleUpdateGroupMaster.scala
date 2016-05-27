@@ -10,7 +10,7 @@ import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import persistence.entities.representations.GroupMaster_R
 import persistence.entities.tables.{GROUP_MASTER, GWBALIAS}
-
+import edu.eckerd.google.api.services.directory.models.Group
 import scala.util.Try
 
 /**
@@ -25,7 +25,7 @@ object GoogleUpdateGroupMaster {
     val GROUP_MASTER_TABLEQUERY = TableQuery[GROUP_MASTER]
     val GWBALIAS = TableQuery[GWBALIAS]
 
-    Await.result(db.run(GROUP_MASTER_TABLEQUERY.schema.create), Duration.Inf)
+//    Await.result(db.run(GROUP_MASTER_TABLEQUERY.schema.create), Duration.Inf)
 
     val currentGroupsinGoogle = service.groups.list()
 
@@ -91,11 +91,25 @@ object GoogleUpdateGroupMaster {
           Future.sequence(seqOfFutures)
     }
 
-
+    val MapOfIDToGroup = currentGroupsinGoogle.map(g => g.id.get -> g)(collection.breakOut): Map[String, Group]
     val currentGroups = Await.result(withGwbaliasrecords, Duration.Inf)
 
     val updated = Future.sequence(currentGroups.map(group =>
       db.run(GROUP_MASTER_TABLEQUERY.insertOrUpdate(group))))
     Await.result(updated, Duration.Inf)
+
+//    val currentAutoGroups = Await.result(db.run(GROUP_MASTER_TABLEQUERY.result), Duration.Inf)
+//
+
+//    val toRemove = currentAutoGroups.filterNot(autoGroup => MapOfIDToGroup.contains(autoGroup.id))
+//    toRemove.foreach(println)
+//    val removed = toRemove.map(r => GROUP_MASTER_TABLEQUERY.filter(_.id === r.id).delete).map(a => db.run(a))
+//    val done = Await.result(Future.sequence(removed), Duration.Inf)
+//
+////    toRemove.foreach(println)
+////    println(toRemove.length)
+
+
+
   }
 }
