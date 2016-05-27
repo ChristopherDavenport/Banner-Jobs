@@ -135,7 +135,7 @@ ORDER BY alias asc
     println( "Initial Query Size", fromDB.length)
     val intermediateResult = fromDB
       .map(tuple => ClassGroupMember(tuple._1, tuple._2, tuple._3, tuple._4, tuple._5, tuple._6, tuple._7, tuple._8, tuple._9))
-    intermediateResult.foreach(println)
+//    intermediateResult.foreach(println)
     val result = intermediateResult
       .filterNot(fromQuery =>
         existingSet((fromQuery.studentEmail.toLowerCase, fromQuery.courseEmail.toLowerCase) ) ||
@@ -223,10 +223,11 @@ ORDER BY alias asc
 
     def CreateGroupInGroupMaster(tryGroup: Try[Group], term: String): Option[Int] = {
       tryGroup match {
-        case Success(group) => group.id match {
-          case Some(_) => Some(0)
-          case None =>
-            val record = GroupMaster_R (group.id.get,
+        case Success(group) =>
+            val record = GroupMaster_R ( group.id match {
+              case Some(id) => id
+              case None => if (action == "prod") throw new Throwable("No ID Returned From Google") else "0"
+            },
               "Y",
               group.name,
               group.email,
@@ -247,7 +248,6 @@ ORDER BY alias asc
               val groupCreationResult = Option(Await.result (actionHere, Duration (3, "seconds") ).length)
               groupCreationResult
             }
-        }
         case Failure(e) => None
       }
     }
